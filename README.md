@@ -3,7 +3,7 @@ A prototype for the HS110 with Engegy Monitor.
 
 Requirements:
 
-a.  Stand-alone bridge (PC, Raspberry) running node.js and version 2.1 of "TP-LinkServer.js"
+a.  Stand-alone bridge (PC, Raspberry) running node.js and version 2.1 of "TP-LinkServer.js"  The attached is a separate copy for your convenience.
 
 Instruction to tester:
 
