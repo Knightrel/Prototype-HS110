@@ -13,6 +13,8 @@ Installation is as for the original devices.  YOU DO NOT HAVE TO DELETE THE ORIG
 
 Instruction to tester:
 
+To initialize the energy monitor functions, you will need to press "Refresh Stats" and also any other command to the plug.
+
 a.  Use SmartThing Logging.  I need to have the log of a single refresh command (about four lines) to debug problems.
 
 b.  Evaluate Interface - Is this the way to do Current Power - or do you want a separate Tile.
@@ -20,3 +22,4 @@ b.  Evaluate Interface - Is this the way to do Current Power - or do you want a 
 c.  If it works - tell me.
 
 d.  Where next?  How much of the TP-Link Energy Monitor functions do you want?????
+
