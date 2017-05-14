@@ -3,7 +3,13 @@ A prototype for the HS110 with Engegy Monitor.
 
 Requirements:
 
-a.  Stand-alone bridge (PC, Raspberry) running node.js and version 2.1 of "TP-LinkServer.js"  The attached is a separate copy for your convenience.
+a.  Stand-alone bridge (PC, Raspberry) running node.js and version Prototype.js"  The attached is a separate copy for your convenience.
+
+# Installation:
+
+This Device Handler REQUIRES the 'Prototpye.js' bridge app.  It runs concurrently with existing bridge apps for this product line. It uses Port 8085 on the Bridge.
+
+Installation is as for the original devices.  YOU DO NOT HAVE TO DELETE THE ORIGINAL DEVICE.  You can add this as a second rendition using a unique Device Network ID (I use HS100PROTO).  This allows existing functions to work w/o interference.
 
 Instruction to tester:
 
