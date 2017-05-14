@@ -10,5 +10,5 @@ CLS
 date /t
 time /t
 node --version
-node TP-LinkServer.js
+node Prototype.js
 goto startNode
