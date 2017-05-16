@@ -1,5 +1,5 @@
 /*
-TP-linkServer.js V2.1.
+HS110 Prototype Bridge Server.
 This is a node.js server supporting TP-Link Devices.  This node server will:
 a.  receive raw TP-Link device commands from SmartThings.
 b.  encrypt and then send the command to the TP-Link device.
@@ -19,7 +19,7 @@ var net = require('net')
 var server = http.createServer(onRequest)
 var serverPort = '8085'  // Same is in various groovy files.
 server.listen(serverPort)
-console.log("TP-Link Server - Lite Edition")
+console.log("Prototype HS110 DH Bridge App")
 //-- For each request received from the SmartThings. ----------------------------
 function onRequest(request, response){
 	console.log(" ")
@@ -43,7 +43,7 @@ function onRequest(request, response){
 		case "deviceCommand":
 			resp = ""
 			processDeviceCommand(request)
-			setTimeout(setCommandHeader, 300)
+			setTimeout(setCommandHeader, 500)
 			function setCommandHeader() {
 				var respData = decrypt(resp.slice(4))
 console.log("Response Data:     " + respData)
@@ -71,16 +71,13 @@ function processDeviceCommand(request) {
   		socket.write(encrypt(command))
    	 })
 	socket.on('data', (data) => {
-console.log("AT SOCKET.ON DATA")
 		resp = resp + data.toString('ascii')
 		socket.end()
 	}).on('timeout', () => {
 		resp = encrypt("TcpTimeout").toString('ascii')
-console.log("AT SOCKET.ON TIMEOUT")
 		socket.end()
 	}).on('error', (err) => {
 		resp = encrypt("TcpError").toString('ascii')
-console.log(err)
 		socket.end()
 	})
 }
