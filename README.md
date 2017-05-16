@@ -5,6 +5,14 @@ Requirements:
 
 a.  Stand-alone bridge (PC, Raspberry) running node.js and version Prototype.js"  The attached is a separate copy for your convenience.
 
+b.  A TP-Link HS110 plug.
+
+# UPDATED May 16
+
+Updated to include all functions, add auto schedule of monitor (after pusing "Refresh Stats"), avoide race conditions, and handle installation with non-HS-110 plugs.
+
+Requires reinstallation of both the DH and the 'prototype.js' file.
+
 # Installation:
 
 This Device Handler REQUIRES the 'Prototpye.js' bridge app.  It runs concurrently with existing bridge apps for this product line. It uses Port 8085 on the Bridge.
