@@ -7,11 +7,17 @@ a.  Stand-alone bridge (PC, Raspberry) running node.js and version Prototype.js"
 
 b.  A TP-Link HS110 plug.
 
-# UPDATED May 16
+# UPDATED May 21
 
-Updated to include all functions, add auto schedule of monitor (after pusing "Refresh Stats"), avoide race conditions, and handle installation with non-HS-110 plugs.
+Updated to explicit HS-110 message and energy data format.  TO UPDATE, 
 
-Requires reinstallation of both the DH and the 'prototype.js' file.
+a.  Open the existing DH on the SmartThings IDE,
+
+b.  Delete existing code and copy contents of the new 'Prototype HS110.groovy" file into the DH,
+
+c.  Select SAVE and the PUBLISH (for me).
+
+Does NOT require an update to the 'Prototype.js' file.
 
 # Installation:
 
