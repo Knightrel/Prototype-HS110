@@ -1,7 +1,5 @@
 /*
-TP-Link HS110 PROTOTYPE
-Increment 1 - Current Power
-
+TP-Link HS-110 Device Handler, Version 3.0
 
 Copyright 2017 Dave Gutheinz
 
@@ -15,11 +13,20 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS
 ANY KIND, either express or implied. See the License for the specific language governing 
 permissions and limitations under the License.
 
-Notes: This is a prototype HS-110 DH.  Read the Installation Instructions for explicit
-instructions.
+Supported models and functions:  This device supports the TP-Link HS100, HS105, HS110, and
+HS200 devices.  It supports the on/off function only.
+
+Notes: 
+1.	This Device Handler requires an operating Windows 10 PC Bridge running version 3.0 of
+	'TP-LinkServer.js'.  It is NOT fully compatible with earlier versions.
+2.	This device supports the TP-Link HS110.  It supports on/off as well as daily, weekly,
+	and monthly energy usage data display.
+
+Update History
+	06/01/2017	- Initial release of HS-110 handler
 */
 metadata {
-	definition (name: "Prototpe HS110", namespace: "test", author: "Dave Gutheinz") {
+	definition (name: "TP-Link HS110 with Energy", namespace: "djg", author: "Dave Gutheinz") {
 		capability "Switch"
 		capability "refresh"
         capability "powerMeter"
@@ -41,7 +48,7 @@ metadata {
 				nextState:"turningOff"
 				attributeState "turningOff", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#e86d13",
 				nextState:"turningOn"
-                attributeState "offline", label:'Bulb Offline', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"##e86d13",
+                attributeState "offline", label:'Comms Error', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#e86d13",
                 nextState:"turningOn"
 			}
 		}
@@ -55,19 +62,19 @@ metadata {
 			state "power", label: 'Current Power \n\r ${currentValue} W'
 		}
         valueTile("engrToday", "device.engrToday", decoration: "flat", height: 1, width: 2) {
-        	state "engrToday", label: 'Todays Energy\n\r${currentValue} KWH'
+        	state "engrToday", label: 'Todays Usage\n\r${currentValue} KWH'
         }
 		valueTile("monthTotal", "device.monthTotalE", decoration: "flat", height: 1, width: 2) {
 			state "monthTotalE", label: '30 Day Total\n\r ${currentValue} KWH'
 		}
 		valueTile("monthAverage", "device.monthAvgE", decoration: "flat", height: 1, width: 2) {
-			state "monthAvgE", label: '30 Day Average\n\r ${currentValue} KWH'
+			state "monthAvgE", label: '30 Day Avg\n\r ${currentValue} KWH'
 		}
 		valueTile("weekTotal", "device.weekTotalE", decoration: "flat", height: 1, width: 2) {
-			state "weekTotalE", label: 'Week Total\n\r ${currentValue} KWH'
+			state "weekTotalE", label: '7 Day Total\n\r ${currentValue} KWH'
 		}
 		valueTile("weekAverage", "device.weekAvgE", decoration: "flat", height: 1, width: 2) {
-			state "weekAvgE", label: 'Week Average\n\r ${currentValue} KWH'
+			state "weekAvgE", label: '7 Day Avg\n\r ${currentValue} KWH'
 		}
         
 		main("switch")
@@ -78,68 +85,61 @@ preferences {
 	input("deviceIP", "text", title: "Device IP", required: true, displayDuringSetup: true)
 	input("gatewayIP", "text", title: "Gateway IP", required: true, displayDuringSetup: true)
 }
-//	------------------------------------------------------------------------------
 def on() {
-	log.info "${device.name} ${device.label}: Turning ON"
 	sendCmdtoServer('{"system":{"set_relay_state":{"state": 1}}}', "onOffResponse")
 }
-//	------------------------------------------------------------------------------
 def off() {
-	log.info "${device.name} ${device.label}: Turning OFF"
 	sendCmdtoServer('{"system":{"set_relay_state":{"state": 0}}}', "onOffResponse")
 }
-//	------------------------------------------------------------------------------
 def refresh(){
-	log.info "Polling ${device.name} ${device.label}"
 	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "refreshResponse")
 }
-//	------------------------------------------------------------------------------
-//	Energy Monitor Functions for HS-110
-//	Get current consumption rate
-def getEngeryMeter(){
-	sendCmdtoServer('{"emeter":{"get_realtime":{}}}', "energyMeterResponse")
-}
-//	------------------------------------------------------------------------------
-//	Get today's total consumption
-def getTodayUse(){
-	initEngMon()
-    def month = state.monthToday
-	def year = state.yearToday
-	sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${month}, "year": ${year}}}}""", "engrTodayResponse")
-}
-//	------------------------------------------------------------------------------
-//	Get the weekly and monthly statistics
-def getWkMonStats() {
-	log.info "Refreshing Weekly and Monthly Energry Statistics"
-    unschedule(getWkMonStats)
-    runEvery3Hours(getWkMonStats)
-	initEngMon()
-    def month = state.monthToday
-	def year = state.yearToday
-	sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${month}, "year": ${year}}}}""", "engrStatsResponse")
-	if (month == 1) {
-    	year -= 1
-        month = 12
-    } else {
-		month -= 1
-    }
-	sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${month}, "year": ${year}}}}""", "engrStatsResponse")
-}
-//	------------------------------------------------------------------------------
 def initEngMon() {
     state.monTotEnergy = 0
 	state.monTotDays = 0
     state.wkTotEnergy = 0
+}
+def getDateData() {
     def today = new Date().format('yyyyMMdd')
     state.yearToday = today.substring(0,4) as int
     state.monthToday = today.substring(4,6) as int
     state.dayToday = today.substring(6,8) as int
 }
-//	------------------------------------------------------------------------------
-//	Standard send command to server function.
+def getEngeryMeter(){
+	sendCmdtoServer('{"emeter":{"get_realtime":{}}}', "energyMeterResponse")
+}
+def getUseToday(){
+	getDateData()
+    def month = state.monthToday
+	def year = state.yearToday
+	sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${month}, "year": ${year}}}}""", "engrTodayResponse")
+}
+def getWkMonStats() {
+	initEngMon()
+    getDateData()
+    def month = state.monthToday
+	def year = state.yearToday
+	sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${month}, "year": ${year}}}}""", "engrStatsResponse")
+    runIn(2, getPrevMonth)
+}
+def getPrevMonth() {
+    getDateData()
+    def month = state.monthToday
+	def year = state.yearToday
+	if (month == 1) {
+    	year -= 1
+        month = 12
+		sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${month}, "year": ${year}}}}""", "engrStatsResponse")
+    } else {
+		month -= 1
+		sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${month}, "year": ${year}}}}""", "engrStatsResponse")
+    }
+    schedule("0 30 1 * * ?", getWkMonStats, [overwrite: true])
+}
 private sendCmdtoServer(command, action){
 	def headers = [:] 
-	headers.put("HOST", "$gatewayIP:8085")   // port 8082 must be same as value in TP-LInkServerLite.js
+//	headers.put("HOST", "$gatewayIP:8082")   // port 8082 must match 'TP-Link Server.js'
+	headers.put("HOST", "$gatewayIP:8085")   // PROTOTYPE ONLY.  USE FOR PROTOTYPE ONLY.
 	headers.put("tplink-iot-ip", deviceIP)
     headers.put("tplink-command", command)
 	headers.put("command", "deviceCommand")
@@ -149,19 +149,21 @@ private sendCmdtoServer(command, action){
 		[callback: action]
 	))
 }
-//	------------------------------------------------------------------------------
 def onOffResponse(response){
-	log.info "On/Off command response received from server!"
-	refresh()
+	if (response.headers["cmd-response"] == "commError") {
+		log.error "$device.name $device.label: Communications Error"
+		sendEvent(name: "switch", value: "offline", descriptionText: "ERROR - OffLine - mod onOffResponse", isStateChange: true)
+     } else {
+		log.info "On/Off command response received from server!"
+		refresh()
+	}
 }
-//	------------------------------------------------------------------------------
 def refreshResponse(response){
-	if (response.headers["cmd-response"] == "TcpTimeout") {
-		log.error "$device.name $device.label: TCP Timeout"
-		sendEvent(name: "switch", value: "offline", isStateChange: true)
-	} else if (response.headers["cmd-response"] == "invalidServerCmd") {
-		log.error "$device.name $device.label: Server Received an Invalid Command"
-    } else {
+	if (response.headers["cmd-response"] == "commError") {
+		log.error "$device.name $device.label: Communications Error"
+		sendEvent(name: "switch", value: "offline", descriptionText: "ERROR - OffLine - mod refreshResponse", isStateChange: true)
+     } else {
+     	getEngeryMeter()
 		def cmdResponse = parseJson(response.headers["cmd-response"])
 		def status = cmdResponse.system.get_sysinfo.relay_state
 		if (status == 1) {
@@ -172,86 +174,74 @@ def refreshResponse(response){
 		log.info "${device.name} ${device.label}: Power: ${status}"
 		sendEvent(name: "switch", value: status, isStateChange: true)
 	}
-    getEngeryMeter()
-    runIn(1, getTodayUse())
 }
-//	------------------------------------------------------------------------------
-//	Energy Monitor Response Parsing
-//	Get the current consumption rate
 def energyMeterResponse(response) {
 	def cmdResponse = parseJson(response.headers["cmd-response"])
-    if (cmdResponse.emeter.err_code == -1) {
-    	log.error "Energy Monitor not supported on Device.  Only Supported on HS110"
+    if (cmdResponse["emeter"].err_code == -1) {
+    	log.error "This DH Only Supports the HS110 plug"
+		sendEvent(name: "power", value: powerConsumption, descriptionText: "Bulb is not a HS110", isStateChange: true)
     } else {
-    	def state = cmdResponse["emeter"]["get_realtime"]
-		def powerConsumption = state.power_mw / 1000
+		getUseToday()
+	    def state = cmdResponse["emeter"]["get_realtime"]
+		def powerConsumption = state.power
 		sendEvent(name: "power", value: powerConsumption, isStateChange: true)
-    	log.info "Updated Current Power to $powerConsumption W"
+	    log.info "Updating Current Power to $powerConsumption"
     }
 }
-//	------------------------------------------------------------------------------
-//	Get consumption today
 def engrTodayResponse(response) {
+    getDateData()
+	def engrToday
 	def cmdResponse = parseJson(response.headers["cmd-response"])
-    if (cmdResponse.emeter.err_code == -1) {
-    	log.error "Energy Monitor not supported on Device.  Only Supported on HS110"
-    } else {
-		def monTotEnergy = state.monTotEnergy
-		def engrToday
-	    def dayList = cmdResponse["emeter"]["get_daystat"].day_list
-		for (int i = 0; i < dayList.size(); i++) {
-	    	def engrData = dayList[i]
-			if(engrData.day == state.dayToday) {
-	        	engrToday = engrData.energy_wh/1000
-	        }
-	   }
-	    sendEvent(name: "engrToday", value: engrToday, isStateChange: true)
-	    log.info "Updated Current power useag to $engrToday"
-	}
+    def dayList = cmdResponse["emeter"]["get_daystat"].day_list
+	for (int i = 0; i < dayList.size(); i++) {
+    	def engrData = dayList[i]
+		if(engrData.day == state.dayToday) {
+        	engrToday = Math.round(1000*engrData.energy) / 1000
+        }
+   }
+    sendEvent(name: "engrToday", value: engrToday, isStateChange: true)
+    log.info "Updated Today's Usage to $engrToday"
 }
-//	------------------------------------------------------------------------------
-//	Get monthly and weekly consumption statistics
 def engrStatsResponse(response) {
+	getDateData()
+	def monTotEnergy = state.monTotEnergy
+	def wkTotEnergy = state.wkTotEnergy
+	def monTotDays = state.monTotDays
+	Calendar calendar = GregorianCalendar.instance
+	calendar.set(state.yearToday, state.monthToday, 1)
+	def prevMonthDays = calendar.getActualMaximum(GregorianCalendar.DAY_OF_MONTH)
+	def weekEnd = state.dayToday + prevMonthDays - 1
+	def weekStart = weekEnd - 6
 	def cmdResponse = parseJson(response.headers["cmd-response"])
-    if (cmdResponse.emeter.err_code == -1) {
-    	log.error "Energy Monitor not supported on Device.  Only Supported on HS110"
+	if (cmdResponse["emeter"].err_code == -1) {
+	    log.error "This DH Only Supports the HS110 plug"
+		sendEvent(name: "monthTotalE", value: 0, descriptionText: "Bulb is not a HS110", isStateChange: true)
     } else {
-		def monTotEnergy = state.monTotEnergy
-	    def wkTotEnergy = state.wkTotEnergy
-		def monTotDays = state.monTotDays
-//	Determine start and stop parameters for the weekly data.
-		Calendar calendar = GregorianCalendar.instance
-		calendar.set(state.yearToday, state.monthToday, 1)
-	    def prevMonthDays = calendar.getActualMaximum(GregorianCalendar.DAY_OF_MONTH)
-		def weekEnd = state.dayToday + prevMonthDays - 1
-	    def weekStart = weekEnd - 6
-//	Read sent data and extract data.
-	    def dayList = cmdResponse["emeter"]["get_daystat"].day_list
+		def dayList = cmdResponse["emeter"]["get_daystat"].day_list
 		for (int i = 0; i < dayList.size(); i++) {
-	    	def engrData = dayList[i]
-//	Get monthly total energy (all date except current day)
+		    def engrData = dayList[i]
 			if(engrData.day == state.dayToday) {
-	        	monTotDays -= 1
-	        } else {
-	    		monTotEnergy += engrData.energy_wh
-	        }
-//	Get weekly total energy - from yesterday and back
-	        def adjEngDay = engrData.day + prevMonthDays
+		        monTotDays -= 1
+		    } else {
+		    	monTotEnergy += engrData.energy
+		    }
+		    def adjEngDay = engrData.day + prevMonthDays
 			if (engrData.day + prevMonthDays <= weekEnd && engrData.day + prevMonthDays >= weekStart) {
-	        	wkTotEnergy += engrData.energy_wh
+		        wkTotEnergy += engrData.energy
 			}
-	    }
-//	Update state values, calculate averages, and update display through sendEvent
-	    monTotDays += dayList.size()
-	    state.monTotDays = monTotDays
+		}
+		monTotDays += dayList.size()
+		state.monTotDays = monTotDays
 		state.monTotEnergy = monTotEnergy
-	    state.wkTotEnergy = wkTotEnergy
-		def monAvgEnergy = Math.round(monTotEnergy/(monTotDays-1))/1000
-	    def wkAvgEnergy = Math.round(wkTotEnergy/7)/1000
-		sendEvent(name: "monthTotalE", value: monTotEnergy/1000, isStateChange: true)
-	    sendEvent(name: "monthAvgE", value: monAvgEnergy, isStateChange: true)
-		sendEvent(name: "weekTotalE", value: wkTotEnergy/1000, isStateChange: true)
-	    sendEvent(name: "weekAvgE", value: wkAvgEnergy, isStateChange: true)
-	    log.info "Updated Weekly and Monthly energy consumption statistics"
+		state.wkTotEnergy = wkTotEnergy
+        wkTotEnergy = Math.round(1000*wkTotEnergy) / 1000
+        monTotEnergy = Math.round(1000*monTotEnergy) / 1000
+		def wkAvgEnergy = Math.round((1000*wkTotEnergy)/7) / 1000
+		def monAvgEnergy = Math.round((1000*monTotEnergy)/monTotDays) / 1000
+		sendEvent(name: "monthTotalE", value: monTotEnergy, isStateChange: true)
+		sendEvent(name: "monthAvgE", value: monAvgEnergy, isStateChange: true)
+		sendEvent(name: "weekTotalE", value: wkTotEnergy, isStateChange: true)
+		sendEvent(name: "weekAvgE", value: wkAvgEnergy, isStateChange: true)
+		log.info "Updated 7 and 30 day energy consumption statistics"
 	}
 }
