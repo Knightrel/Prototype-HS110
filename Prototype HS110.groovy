@@ -29,6 +29,7 @@ metadata {
 	definition (name: "TP-Link HS110 Prototype", namespace: "zzz", author: "Dave Gutheinz") {
 		capability "Switch"
 		capability "refresh"
+        capability "polling"
         capability "powerMeter"
         capability "Sensor"
 		capability "Actuator"
@@ -38,6 +39,7 @@ metadata {
         attribute "weekTotalE", "string"
         attribute "weekAvgE", "string"
         attribute "engrToday", "string"
+        attribute "dateUpdate", "string"		//	#####  FOR DEBUG PURPOSES ONLY
 	}
 	tiles(scale: 2) {
 		multiAttributeTile(name:"switch", type: "lighting", width: 6, height: 4, canChangeIcon: true){
@@ -91,11 +93,12 @@ preferences {
 //	----- RUN WHEN DON IS PRESSED IN SETTINGS ---------------------------------
 def updated() {
 	log.info "Running Updated"
-	setCurrentDate()
-    runIn(2, refresh)
-    runIn(5, getWkMonStats)
-	schedule("0 30 0/1 * * ?", getWkMonStats)		//TEMP ONE HOUR CYCLE.  WILL BE 6
-	schedule("0 15 0/1 * * ?", setCurrentDate)		//TEMP ONE HOUR CYCLE.  WILL BE 6
+    unschedule()
+	schedule("0 15 0/1 * * ?", setCurrentDate)		//	#####  Change to 2x per day in production
+	schedule("0 30 0/1 * * ?", getWkMonStats)		//	#####  Change to 2x per day in production
+	runIn(3, setCurrentDate)
+    runIn(6, refresh)
+    runIn(10, getWkMonStats)
 }
 //	---------------------------------------------------------------------------
 //	----- BASIC PLUG COMMANDS -------------------------------------------------
@@ -108,6 +111,9 @@ def off() {
 def refresh(){
 	log.info "Refreshing ${device.name} ${device.label}"
 	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "refreshResponse")
+}
+def poll() {
+	refresh()
 }
 def onOffResponse(response){
 	if (response.headers["cmd-response"] == "commError") {
@@ -254,6 +260,8 @@ def currentDateResponse(response) {
     updateDataValue("dayToday", "$setDate.mday")
     updateDataValue("monthToday", "$setDate.month")
     updateDataValue("yearToday", "$setDate.year")
+    sendEvent(name: "dateUpdate", value: "$setDate.hour : $setDate.min")		//	##### FOR DEBUG PURPOSES ONLY
+    log.info "Current Date Updated at $setDate.hour : $setDate.min"
 }
 def getDateData(){
 	state.dayToday = getDataValue("dayToday") as int
@@ -264,7 +272,7 @@ def getDateData(){
 //	----- SEND COMMAND DATA TO THE SERVER -------------------------------------
 private sendCmdtoServer(command, action){
 	def headers = [:] 
-	headers.put("HOST", "$gatewayIP:8085")	//	SET TO VALUE IN JAVA SCRIPT PKG.
+	headers.put("HOST", "$gatewayIP:8082")	//	SET TO VALUE IN JAVA SCRIPT PKG.
 	headers.put("tplink-iot-ip", deviceIP)
     headers.put("tplink-command", command)
 	headers.put("command", "deviceCommand")
