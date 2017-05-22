@@ -7,17 +7,27 @@ a.  Stand-alone bridge (PC, Raspberry) running node.js and version Prototype.js"
 
 b.  A TP-Link HS110 plug.
 
-# UPDATED May 21
+# UPDATED May 22
 
-Updated to explicit HS-110 message and energy data format.  TO UPDATE, 
+Updated to correct date derivation and insert automatic scheduling of weekly/monthly statistics.  TO UPDATE,
 
 a.  Open the existing DH on the SmartThings IDE,
 
 b.  Delete existing code and copy contents of the new 'Prototype HS110.groovy" file into the DH,
 
-c.  Select SAVE and the PUBLISH (for me).
+c.  Select SAVE and the PUBLISH (for me),
+
+4.  In the ST App, under settings, select "DONE".  This will initialize the date and scheduling functions.
 
 Does NOT require an update to the 'Prototype.js' file.
+
+# Open issues
+
+1.  Ensure energy data is only 31 days (31 May check)
+
+2.  Validate month roll-over in calculations (2 June check)
+
+3.  See if automatic (15 min) refresh is working, once the devices are stable (current).  May have to go to polling.
 
 # Installation:
 
