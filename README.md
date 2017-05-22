@@ -17,7 +17,7 @@ b.  Delete existing code and copy contents of the new 'Prototype HS110.groovy" f
 
 c.  Select SAVE and the PUBLISH (for me),
 
-4.  In the ST App, under settings, select "DONE".  This will initialize the date and scheduling functions.
+d.  In the ST App, under settings, select "DONE".  This will initialize the date and scheduling functions.
 
 Does NOT require an update to the 'Prototype.js' file.
 
