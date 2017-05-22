@@ -26,10 +26,12 @@ Update History
 	06/01/2017	- Initial release of HS-110 handler
 */
 metadata {
-	definition (name: "TP-Link HS110 with Energy", namespace: "djg", author: "Dave Gutheinz") {
+	definition (name: "TP-Link HS110 Prototype", namespace: "zzz", author: "Dave Gutheinz") {
 		capability "Switch"
 		capability "refresh"
         capability "powerMeter"
+        capability "Sensor"
+		capability "Actuator"
         command "getWkMonStats"
         attribute "monthTotalE", "string"
         attribute "monthAvgE", "string"
@@ -85,6 +87,18 @@ preferences {
 	input("deviceIP", "text", title: "Device IP", required: true, displayDuringSetup: true)
 	input("gatewayIP", "text", title: "Gateway IP", required: true, displayDuringSetup: true)
 }
+//	---------------------------------------------------------------------------
+//	----- RUN WHEN DON IS PRESSED IN SETTINGS ---------------------------------
+def updated() {
+	log.info "Running Updated"
+	setCurrentDate()
+    runIn(2, refresh)
+    runIn(5, getWkMonStats)
+	schedule("0 30 0/1 * * ?", getWkMonStats)		//TEMP ONE HOUR CYCLE.  WILL BE 6
+	schedule("0 15 0/1 * * ?", setCurrentDate)		//TEMP ONE HOUR CYCLE.  WILL BE 6
+}
+//	---------------------------------------------------------------------------
+//	----- BASIC PLUG COMMANDS -------------------------------------------------
 def on() {
 	sendCmdtoServer('{"system":{"set_relay_state":{"state": 1}}}', "onOffResponse")
 }
@@ -92,62 +106,8 @@ def off() {
 	sendCmdtoServer('{"system":{"set_relay_state":{"state": 0}}}', "onOffResponse")
 }
 def refresh(){
+	log.info "Refreshing ${device.name} ${device.label}"
 	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "refreshResponse")
-}
-def initEngMon() {
-    state.monTotEnergy = 0
-	state.monTotDays = 0
-    state.wkTotEnergy = 0
-}
-def getDateData() {
-    def today = new Date().format('yyyyMMdd')
-    state.yearToday = today.substring(0,4) as int
-    state.monthToday = today.substring(4,6) as int
-    state.dayToday = today.substring(6,8) as int
-}
-def getEngeryMeter(){
-	sendCmdtoServer('{"emeter":{"get_realtime":{}}}', "energyMeterResponse")
-}
-def getUseToday(){
-	getDateData()
-    def month = state.monthToday
-	def year = state.yearToday
-	sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${month}, "year": ${year}}}}""", "engrTodayResponse")
-}
-def getWkMonStats() {
-	initEngMon()
-    getDateData()
-    def month = state.monthToday
-	def year = state.yearToday
-	sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${month}, "year": ${year}}}}""", "engrStatsResponse")
-    runIn(2, getPrevMonth)
-}
-def getPrevMonth() {
-    getDateData()
-    def month = state.monthToday
-	def year = state.yearToday
-	if (month == 1) {
-    	year -= 1
-        month = 12
-		sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${month}, "year": ${year}}}}""", "engrStatsResponse")
-    } else {
-		month -= 1
-		sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${month}, "year": ${year}}}}""", "engrStatsResponse")
-    }
-    schedule("0 30 1 * * ?", getWkMonStats, [overwrite: true])
-}
-private sendCmdtoServer(command, action){
-	def headers = [:] 
-//	headers.put("HOST", "$gatewayIP:8082")   // port 8082 must match 'TP-Link Server.js'
-	headers.put("HOST", "$gatewayIP:8085")   // PROTOTYPE ONLY.  USE FOR PROTOTYPE ONLY.
-	headers.put("tplink-iot-ip", deviceIP)
-    headers.put("tplink-command", command)
-	headers.put("command", "deviceCommand")
-	sendHubCommand(new physicalgraph.device.HubAction([
-		headers: headers],
-		device.deviceNetworkId,
-		[callback: action]
-	))
 }
 def onOffResponse(response){
 	if (response.headers["cmd-response"] == "commError") {
@@ -163,7 +123,7 @@ def refreshResponse(response){
 		log.error "$device.name $device.label: Communications Error"
 		sendEvent(name: "switch", value: "offline", descriptionText: "ERROR - OffLine - mod refreshResponse", isStateChange: true)
      } else {
-     	getEngeryMeter()
+//     	getEngeryMeter()
 		def cmdResponse = parseJson(response.headers["cmd-response"])
 		def status = cmdResponse.system.get_sysinfo.relay_state
 		if (status == 1) {
@@ -173,7 +133,13 @@ def refreshResponse(response){
 		}
 		log.info "${device.name} ${device.label}: Power: ${status}"
 		sendEvent(name: "switch", value: status, isStateChange: true)
+     	getEngeryMeter()
 	}
+}
+//	---------------------------------------------------------------------------
+//	----- CURRENT ENERGY METER DATA -------------------------------------------
+def getEngeryMeter(){
+	sendCmdtoServer('{"emeter":{"get_realtime":{}}}', "energyMeterResponse")
 }
 def energyMeterResponse(response) {
 	def cmdResponse = parseJson(response.headers["cmd-response"])
@@ -181,15 +147,20 @@ def energyMeterResponse(response) {
     	log.error "This DH Only Supports the HS110 plug"
 		sendEvent(name: "power", value: powerConsumption, descriptionText: "Bulb is not a HS110", isStateChange: true)
     } else {
-		getUseToday()
 	    def state = cmdResponse["emeter"]["get_realtime"]
 		def powerConsumption = state.power
 		sendEvent(name: "power", value: powerConsumption, isStateChange: true)
 	    log.info "Updating Current Power to $powerConsumption"
+		getUseToday()
     }
 }
-def engrTodayResponse(response) {
-    getDateData()
+//	---------------------------------------------------------------------------
+//	----- USE TODAY DATA ------------------------------------------------------
+def getUseToday(){
+	getDateData()
+	sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${state.monthToday}, "year": ${state.yearToday}}}}""", "useTodayResponse")
+}
+def useTodayResponse(response) {
 	def engrToday
 	def cmdResponse = parseJson(response.headers["cmd-response"])
     def dayList = cmdResponse["emeter"]["get_daystat"].day_list
@@ -202,8 +173,33 @@ def engrTodayResponse(response) {
     sendEvent(name: "engrToday", value: engrToday, isStateChange: true)
     log.info "Updated Today's Usage to $engrToday"
 }
+//	---------------------------------------------------------------------------
+//	----- WEEKLY AND MONTHLY STATISTICS ---------------------------------------
+def getWkMonStats() {
+    state.monTotEnergy = 0
+	state.monTotDays = 0
+    state.wkTotEnergy = 0
+    getDateData()
+	sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${state.monthToday}, "year": ${state.yearToday}}}}""", "engrStatsResponse")
+    runIn(2, getPrevMonth)
+    schedule("0 30 0/6 * * ?", getWkMonStats)
+}
+def getPrevMonth() {
+    getDateData()
+	if (state.dayToday < 31) {
+	    def month = state.monthToday
+		def year = state.yearToday
+		if (month == 1) {
+	    	year -= 1
+	        month = 12
+			sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${month}, "year": ${year}}}}""", "engrStatsResponse")
+	    } else {
+			month -= 1
+			sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${month}, "year": ${year}}}}""", "engrStatsResponse")
+	    }
+	}
+}
 def engrStatsResponse(response) {
-	getDateData()
 	def monTotEnergy = state.monTotEnergy
 	def wkTotEnergy = state.wkTotEnergy
 	def monTotDays = state.monTotDays
@@ -220,7 +216,7 @@ def engrStatsResponse(response) {
 		def dayList = cmdResponse["emeter"]["get_daystat"].day_list
 		for (int i = 0; i < dayList.size(); i++) {
 		    def engrData = dayList[i]
-			if(engrData.day == state.dayToday) {
+			if(engrData.day == state.dayToday && engrData.month == state.monthToday) {
 		        monTotDays -= 1
 		    } else {
 		    	monTotEnergy += engrData.energy
@@ -234,14 +230,47 @@ def engrStatsResponse(response) {
 		state.monTotDays = monTotDays
 		state.monTotEnergy = monTotEnergy
 		state.wkTotEnergy = wkTotEnergy
-        wkTotEnergy = Math.round(1000*wkTotEnergy) / 1000
-        monTotEnergy = Math.round(1000*monTotEnergy) / 1000
-		def wkAvgEnergy = Math.round((1000*wkTotEnergy)/7) / 1000
-		def monAvgEnergy = Math.round((1000*monTotEnergy)/monTotDays) / 1000
-		sendEvent(name: "monthTotalE", value: monTotEnergy, isStateChange: true)
-		sendEvent(name: "monthAvgE", value: monAvgEnergy, isStateChange: true)
-		sendEvent(name: "weekTotalE", value: wkTotEnergy, isStateChange: true)
-		sendEvent(name: "weekAvgE", value: wkAvgEnergy, isStateChange: true)
-		log.info "Updated 7 and 30 day energy consumption statistics"
+		if (state.dayToday == 31 || state.monthToday -1 == dayList[1].month) {
+			log.info "Updated 7 and 30 day energy consumption statistics"
+	        wkTotEnergy = Math.round(1000*wkTotEnergy) / 1000
+	        monTotEnergy = Math.round(1000*monTotEnergy) / 1000
+			def wkAvgEnergy = Math.round((1000*wkTotEnergy)/7) / 1000
+			def monAvgEnergy = Math.round((1000*monTotEnergy)/monTotDays) / 1000
+			sendEvent(name: "monthTotalE", value: monTotEnergy, isStateChange: true)
+			sendEvent(name: "monthAvgE", value: monAvgEnergy, isStateChange: true)
+			sendEvent(name: "weekTotalE", value: wkTotEnergy, isStateChange: true)
+			sendEvent(name: "weekAvgE", value: wkAvgEnergy, isStateChange: true)
+        }
 	}
+}
+//	---------------------------------------------------------------------------
+//	----- SET CURRENT DATE AND GET DATE DATA FOR PROCESSING -------------------
+def setCurrentDate() {
+	sendCmdtoServer('{"time":{"get_time":null}}', "currentDateResponse")
+}
+def currentDateResponse(response) {
+	def cmdResponse = parseJson(response.headers["cmd-response"])
+	def setDate =  cmdResponse["time"]["get_time"]
+    updateDataValue("dayToday", "$setDate.mday")
+    updateDataValue("monthToday", "$setDate.month")
+    updateDataValue("yearToday", "$setDate.year")
+}
+def getDateData(){
+	state.dayToday = getDataValue("dayToday") as int
+    state.monthToday = getDataValue("monthToday") as int
+    state.yearToday = getDataValue("yearToday") as int
+}
+//	---------------------------------------------------------------------------
+//	----- SEND COMMAND DATA TO THE SERVER -------------------------------------
+private sendCmdtoServer(command, action){
+	def headers = [:] 
+	headers.put("HOST", "$gatewayIP:8085")	//	SET TO VALUE IN JAVA SCRIPT PKG.
+	headers.put("tplink-iot-ip", deviceIP)
+    headers.put("tplink-command", command)
+	headers.put("command", "deviceCommand")
+	sendHubCommand(new physicalgraph.device.HubAction([
+		headers: headers],
+		device.deviceNetworkId,
+		[callback: action]
+	))
 }
