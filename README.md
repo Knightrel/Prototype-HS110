@@ -29,6 +29,8 @@ Does NOT require an update to the 'Prototype.js' file.
 
 3.  See if automatic (15 min) refresh is working, once the devices are stable (current).  May have to go to polling.
 
+4.  Monitor UDP implementation for split return messages from the device causing the DH to generate an error and not update the week/month stat data.
+
 # Installation:
 
 This Device Handler REQUIRES the 'Prototpye.js' bridge app.  It runs concurrently with existing bridge apps for this product line. It uses Port 8085 on the Bridge.
