@@ -26,7 +26,7 @@ Update History
 	06/01/2017	- Initial release of HS-110 handler
 */
 metadata {
-	definition (name: "TP-Link HS110 Prototype", namespace: "zzz", author: "Dave Gutheinz") {
+	definition (name: "TP-Link HS110 Prototype", namespace: "test", author: "Dave Gutheinz") {
 		capability "Switch"
 		capability "refresh"
         capability "polling"
@@ -90,12 +90,13 @@ preferences {
 	input("gatewayIP", "text", title: "Gateway IP", required: true, displayDuringSetup: true)
 }
 //	---------------------------------------------------------------------------
-//	----- RUN WHEN DON IS PRESSED IN SETTINGS ---------------------------------
+//	----- RUN WHEN PREFERENCES ARE UPDATES ------------------------------------
 def updated() {
 	log.info "Running Updated"
     unschedule()
-	schedule("0 15 0/1 * * ?", setCurrentDate)		//	#####  Change to 2x per day in production
-	schedule("0 30 0/1 * * ?", getWkMonStats)		//	#####  Change to 2x per day in production
+    runEvery15Minutes(refresh)
+	schedule("0 15 0/6 * * ?", setCurrentDate)		//	#####  Change to 2x per day in production
+	schedule("0 30 0/6 * * ?", getWkMonStats)		//	#####  Change to 2x per day in production
 	runIn(3, setCurrentDate)
     runIn(6, refresh)
     runIn(10, getWkMonStats)
@@ -111,9 +112,6 @@ def off() {
 def refresh(){
 	log.info "Refreshing ${device.name} ${device.label}"
 	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "refreshResponse")
-}
-def poll() {
-	refresh()
 }
 def onOffResponse(response){
 	if (response.headers["cmd-response"] == "commError") {
