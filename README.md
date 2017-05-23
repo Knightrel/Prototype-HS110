@@ -1,9 +1,11 @@
 # Prototype-HS110
-A prototype for the HS110 with Engegy Monitor.
+A prototype for the HS110 with Engegy Monitor for SmartThing integration.  Includes daily, weekly, and stats.
 
-Requirements:
+This is a prototype.  The final version will run in using the same node.js script as other SmartThings integrtions in this series.
 
-a.  Stand-alone bridge (PC, Raspberry) running node.js and version Prototype.js"  The attached is a separate copy for your convenience.
+# Requirements:
+
+a.  Stand-alone bridge (PC, Raspberry, etc.) running node.js and version "Prototype.js"  The attached is a separate copy for your convenience.
 
 b.  A TP-Link HS110 plug.
 
