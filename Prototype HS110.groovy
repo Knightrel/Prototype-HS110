@@ -42,19 +42,12 @@ metadata {
         attribute "dateUpdate", "string"
 	}
 	tiles(scale: 2) {
-		multiAttributeTile(name:"switch", type: "lighting", width: 6, height: 4, canChangeIcon: true){
-			tileAttribute ("device.switch", key: "PRIMARY_CONTROL") {
-				attributeState "on", label:'${name}', action:"switch.off", icon:'st.switches.switch.on', backgroundColor:"#00a0dc",
-				nextState:"turningOff"
-				attributeState "off", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#ffffff",
-				nextState:"turningOn"
-				attributeState "turningOn", label:'${name}', action:"switch.off", icon:"st.switches.switch.on", backgroundColor:"#e86d13",
-				nextState:"turningOff"
-				attributeState "turningOff", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#e86d13",
-				nextState:"turningOn"
-                attributeState "offline", label:'Comms Error', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#e86d13",
-                nextState:"turningOn"
-			}
+		standardTile("switch", "device.switch", width: 6, height: 4, canChangeIcon: true) {
+			state "on", label:'${name}', action:"switch.off", icon:'st.switches.switch.on', backgroundColor:"#00a0dc", nextState:"turningOff"
+			state "off", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"turningOn"
+			state "turningOn", label:'${name}', action:"switch.off", icon:"st.switch.on", backgroundColor:"#e86d13", nextState:"turningOff"
+			state "turningOff", label:'${name}', action:"switch.on", icon:"st.switch.off", backgroundColor:"#e86d13", nextState:"turningOn"
+			state "offline", label:'Comms Error', action:"switch.on", icon:"st.switch.off", backgroundColor:"#e86d13", nextState:"turningOn"
 		}
 		standardTile("refresh", "capability.refresh", width: 2, height: 2,  decoration: "flat") {
 			state ("default", label:"Refresh", action:"refresh.refresh", icon:"st.secondary.refresh")
@@ -94,7 +87,7 @@ preferences {
 def updated() {
 	log.info "Running Updated"
     unschedule()
-    runEvery15Minutes(refresh)
+//    runEvery15Minutes(refresh)
 	schedule("0 15 0 * * ?", setCurrentDate)
 	schedule("0 30 0 * * ?", getWkMonStats)
 	runIn(3, setCurrentDate)
@@ -269,7 +262,7 @@ def getDateData(){
 //	----- SEND COMMAND DATA TO THE SERVER -------------------------------------
 private sendCmdtoServer(command, action){
 	def headers = [:] 
-	headers.put("HOST", "$gatewayIP:8085")	//	SET TO VALUE IN JAVA SCRIPT PKG.
+	headers.put("HOST", "$gatewayIP:8082")	//	SET TO VALUE IN JAVA SCRIPT PKG.
 	headers.put("tplink-iot-ip", deviceIP)
     headers.put("tplink-command", command)
 	headers.put("command", "deviceCommand")
