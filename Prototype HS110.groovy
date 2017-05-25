@@ -269,7 +269,7 @@ def getDateData(){
 //	----- SEND COMMAND DATA TO THE SERVER -------------------------------------
 private sendCmdtoServer(command, action){
 	def headers = [:] 
-	headers.put("HOST", "$gatewayIP:8082")	//	SET TO VALUE IN JAVA SCRIPT PKG.
+	headers.put("HOST", "$gatewayIP:8085")	//	SET TO VALUE IN JAVA SCRIPT PKG.
 	headers.put("tplink-iot-ip", deviceIP)
     headers.put("tplink-command", command)
 	headers.put("command", "deviceCommand")
