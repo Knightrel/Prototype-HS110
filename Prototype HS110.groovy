@@ -39,7 +39,7 @@ metadata {
         attribute "weekTotalE", "string"
         attribute "weekAvgE", "string"
         attribute "engrToday", "string"
-        attribute "dateUpdate", "string"		//	#####  FOR DEBUG PURPOSES ONLY
+        attribute "dateUpdate", "string"
 	}
 	tiles(scale: 2) {
 		multiAttributeTile(name:"switch", type: "lighting", width: 6, height: 4, canChangeIcon: true){
@@ -95,8 +95,8 @@ def updated() {
 	log.info "Running Updated"
     unschedule()
     runEvery15Minutes(refresh)
-	schedule("0 15 0/6 * * ?", setCurrentDate)		//	#####  Change to 2x per day in production
-	schedule("0 30 0/6 * * ?", getWkMonStats)		//	#####  Change to 2x per day in production
+	schedule("0 15 0 * * ?", setCurrentDate)
+	schedule("0 30 0 * * ?", getWkMonStats)
 	runIn(3, setCurrentDate)
     runIn(6, refresh)
     runIn(10, getWkMonStats)
@@ -127,7 +127,6 @@ def refreshResponse(response){
 		log.error "$device.name $device.label: Communications Error"
 		sendEvent(name: "switch", value: "offline", descriptionText: "ERROR - OffLine - mod refreshResponse", isStateChange: true)
      } else {
-//     	getEngeryMeter()
 		def cmdResponse = parseJson(response.headers["cmd-response"])
 		def status = cmdResponse.system.get_sysinfo.relay_state
 		if (status == 1) {
@@ -258,7 +257,7 @@ def currentDateResponse(response) {
     updateDataValue("dayToday", "$setDate.mday")
     updateDataValue("monthToday", "$setDate.month")
     updateDataValue("yearToday", "$setDate.year")
-    sendEvent(name: "dateUpdate", value: "$setDate.hour : $setDate.min")		//	##### FOR DEBUG PURPOSES ONLY
+    sendEvent(name: "dateUpdate", value: "$setDate.hour : $setDate.min")
     log.info "Current Date Updated at $setDate.hour : $setDate.min"
 }
 def getDateData(){
