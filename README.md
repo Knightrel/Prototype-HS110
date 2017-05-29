@@ -9,7 +9,9 @@ a.  Stand-alone bridge (PC, Raspberry, etc.) running node.js and version "Protot
 
 b.  A TP-Link HS110 plug.
 
-# UPDATED May 22
+# UPDATED May 29
+
+Found error where sending emeter cmd using UDP did not respond (where it had before).  Probably unsupported size (to long a packet).  Changed back to TCP with concating the return.  Requires both Device Handler and prototype.js updates.
 
 Updated to correct date derivation and insert automatic scheduling of weekly/monthly statistics.  TO UPDATE,
 
