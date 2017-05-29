@@ -10,7 +10,7 @@ var net = require('net')
 var fs = require('fs')
 
 var server = http.createServer(onRequest)
-var serverPort = '8082'  // Same is in various groovy files.
+var serverPort = '8085'  // Same is in various groovy files.
 server.listen(serverPort)
 console.log("TP-Link Device Bridge Application")
 fs.appendFile("error.log", "\n\r\n\r" + new Date() + "TP-Link Device Bridge Error Log")
