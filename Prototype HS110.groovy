@@ -1,5 +1,6 @@
 /*
-TP-Link HS-110 Device Handler, Version 3.0
+TP-Link HS-110 Device Handler
+FOR USE ONLY WITH 'TP-LinkServer_v3js'
 
 Copyright 2017 Dave Gutheinz
 
@@ -26,14 +27,14 @@ Update History
 	06/01/2017	- Initial release of HS-110 handler
 */
 metadata {
-	definition (name: "TP-Link HS110 Prototype", namespace: "test", author: "Dave Gutheinz") {
+	definition (name: "TP-Link HS110", namespace: "djg", author: "Dave Gutheinz") {
 		capability "Switch"
 		capability "refresh"
         capability "polling"
         capability "powerMeter"
         capability "Sensor"
 		capability "Actuator"
-        command "getWkMonStats"
+        command "setCurrentDate"
         attribute "monthTotalE", "string"
         attribute "monthAvgE", "string"
         attribute "weekTotalE", "string"
@@ -43,17 +44,17 @@ metadata {
 	}
 	tiles(scale: 2) {
 		standardTile("switch", "device.switch", width: 6, height: 4, canChangeIcon: true) {
-			state "on", label:'${name}', action:"switch.off", icon:'st.switches.switch.on', backgroundColor:"#00a0dc", nextState:"turningOff"
-			state "off", label:'${name}', action:"switch.on", icon:"st.switches.switch.off", backgroundColor:"#ffffff", nextState:"turningOn"
-			state "turningOn", label:'${name}', action:"switch.off", icon:"st.switch.on", backgroundColor:"#e86d13", nextState:"turningOff"
-			state "turningOff", label:'${name}', action:"switch.on", icon:"st.switch.off", backgroundColor:"#e86d13", nextState:"turningOn"
-			state "offline", label:'Comms Error', action:"switch.on", icon:"st.switch.off", backgroundColor:"#e86d13", nextState:"turningOn"
+			state "on", label:'${name}', action:"switch.off", icon:"st.switches.switch.on", backgroundColor:"#00a0dc",nextState:"turningOff"
+			state "off", label:'${name}', action:"switch.on", icon:"st.switch.off", backgroundColor:"#ffffff",nextState:"waiting"
+			state "turningOff", label:'waiting', action:"switch.off", icon:"st.switches.switch.on", backgroundColor:"#15EE10",nextState:"waiting"
+			state "waiting", label:'${name}', action:"switch.on", icon:"st.switches.switch.on", backgroundColor:"#15EE10",nextState:"on"
+            state "offline", label:'Comms Error', action:"switch.on", icon:"st.switch.off", backgroundColor:"#e86d13",nextState:"waiting"
 		}
-		standardTile("refresh", "capability.refresh", width: 2, height: 2,  decoration: "flat") {
+		standardTile("refresh", "capability.refresh", width: 3, height: 2,  decoration: "flat") {
 			state ("default", label:"Refresh", action:"refresh.refresh", icon:"st.secondary.refresh")
 		}         
-		standardTile("refreshStats", "Refresh Statistics", width: 2, height: 2,  decoration: "flat") {
-			state ("refreshStats", label:"Refresh Stats", action:"getWkMonStats", backgroundColor:"#ffffff")
+		standardTile("refreshStats", "Refresh Statistics", width: 3, height: 2,  decoration: "flat") {
+			state ("refreshStats", label:"Refresh Stats", action:"setCurrentDate", backgroundColor:"#ffffff")
 		}         
 		valueTile("power", "device.power", decoration: "flat", height: 1, width: 2) {
 			state "power", label: 'Current Power \n\r ${currentValue} W'
@@ -87,12 +88,11 @@ preferences {
 def updated() {
 	log.info "Running Updated"
     unschedule()
-//    runEvery15Minutes(refresh)
-	schedule("0 15 0 * * ?", setCurrentDate)
-	schedule("0 30 0 * * ?", getWkMonStats)
+	runEvery15Minutes(refresh)
+	schedule("0 30 0 * * ?", setCurrentDate)
 	runIn(3, setCurrentDate)
+	setCurrentDate()
     runIn(6, refresh)
-    runIn(10, getWkMonStats)
 }
 //	---------------------------------------------------------------------------
 //	----- BASIC PLUG COMMANDS -------------------------------------------------
@@ -104,6 +104,7 @@ def off() {
 }
 def refresh(){
 	log.info "Refreshing ${device.name} ${device.label}"
+	sendEvent(name: "switch", value: "waiting", isStateChange: true)
 	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "refreshResponse")
 }
 def onOffResponse(response){
@@ -177,8 +178,7 @@ def getWkMonStats() {
     state.wkTotEnergy = 0
     getDateData()
 	sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${state.monthToday}, "year": ${state.yearToday}}}}""", "engrStatsResponse")
-    runIn(2, getPrevMonth)
-    schedule("0 30 0/6 * * ?", getWkMonStats)
+    runIn(4, getPrevMonth)
 }
 def getPrevMonth() {
     getDateData()
@@ -196,6 +196,7 @@ def getPrevMonth() {
 	}
 }
 def engrStatsResponse(response) {
+	getDateData()
 	def monTotEnergy = state.monTotEnergy
 	def wkTotEnergy = state.wkTotEnergy
 	def monTotDays = state.monTotDays
@@ -243,6 +244,7 @@ def engrStatsResponse(response) {
 //	----- SET CURRENT DATE AND GET DATE DATA FOR PROCESSING -------------------
 def setCurrentDate() {
 	sendCmdtoServer('{"time":{"get_time":null}}', "currentDateResponse")
+    runIn(4, getWkMonStats)
 }
 def currentDateResponse(response) {
 	def cmdResponse = parseJson(response.headers["cmd-response"])
@@ -250,8 +252,8 @@ def currentDateResponse(response) {
     updateDataValue("dayToday", "$setDate.mday")
     updateDataValue("monthToday", "$setDate.month")
     updateDataValue("yearToday", "$setDate.year")
-    sendEvent(name: "dateUpdate", value: "$setDate.hour : $setDate.min")
-    log.info "Current Date Updated at $setDate.hour : $setDate.min"
+    sendEvent(name: "dateUpdate", value: "${setDate.year}/${setDate.month}/${setDate.mday}")
+    log.info "Current Date Updated to ${setDate.year}/${setDate.month}/${setDate.mday}"
 }
 def getDateData(){
 	state.dayToday = getDataValue("dayToday") as int
@@ -262,7 +264,7 @@ def getDateData(){
 //	----- SEND COMMAND DATA TO THE SERVER -------------------------------------
 private sendCmdtoServer(command, action){
 	def headers = [:] 
-	headers.put("HOST", "$gatewayIP:8085")	//	SET TO VALUE IN JAVA SCRIPT PKG.
+	headers.put("HOST", "$gatewayIP:8082")	//	SET TO VALUE IN JAVA SCRIPT PKG.
 	headers.put("tplink-iot-ip", deviceIP)
     headers.put("tplink-command", command)
 	headers.put("command", "deviceCommand")

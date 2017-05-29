@@ -1,26 +1,20 @@
 /*
-HS110 Prototype Bridge Server.
-This is a node.js server supporting TP-Link Devices.  This node server will:
-a.  receive raw TP-Link device commands from SmartThings.
-b.  encrypt and then send the command to the TP-Link device.
-c.  return the response raw data to the SmartThings from the TP-Link Device.
-d.  provides an interface to the TP-LinkBridge.groovy file which monitors this process and provides the ability to restart the PC.  Installation of the TP-LinkBridge.groovy DH is NOT REQUIRED for this program to work properly.
-
+TP-linkServer.js V3.0.
+This is a node.js bridge applet supporting TP-Link Devices.  There is a companion applet, "TP-LinkBridge.js" that is OPTIONAL.  The companion applet with the associated Device Handler provides for monitoring of the bridge device, and if a PC will allow for remote PC reboot if either of the applets are running.
 History:
-03-13-2017 - Initial release with name TP-LinkServerLite.js
-04-02-2017 - Ver 1.2.  Changed TCP timeout to 2 secs. Added error message that will be sent to SmartThings if TCP timeout is attained indicating a bulb off-line. Integrated TCP functions into onRequest. 
-04-07-2017	- Ver 2.0.  Added TP-LinkBridge device handler interface.  Updated file name to 'TP-LinkServer.js'.
-04-13-2017 - Ver 2.1.  Updated file to have switch. Added responses.
+06-01-2017 - Release of update supporting 3.0 device handlers and the HS110 energy monitoring functions.  Added an error log file.
 */
-//-------------------------------------------------------------------------------
-var resp
+//	---------------------------------------------------------------------------
 var http = require('http')
 var net = require('net')
+var fs = require('fs')
+
 var server = http.createServer(onRequest)
-var serverPort = '8085'  // Same is in various groovy files.
+var serverPort = '8082'  // Same is in various groovy files.
 server.listen(serverPort)
-console.log("Prototype HS110 DH Bridge App")
-//-- For each request received from the SmartThings. ----------------------------
+console.log("TP-Link Device Bridge Application")
+fs.appendFile("error.log", "\n\r\n\r" + new Date() + "TP-Link Device Bridge Error Log")
+//	---------------------------------------------------------------------------
 function onRequest(request, response){
 	console.log(" ")
 	console.log(new Date())
@@ -41,67 +35,82 @@ function onRequest(request, response){
 			break
 
 		case "deviceCommand":
-			resp = ""
-			processDeviceCommand(request)
-			setTimeout(setCommandHeader, 500)
-			function setCommandHeader() {
-				var respData = decrypt(resp.slice(4))
-console.log("Response Data:     " + respData)
-				response.setHeader("cmd-response", respData)
-				console.log("Command Response sent to SmartThings!")
-				response.end()
-			}
+			processDeviceCommand(request, response)
 			break
 
 		default:
 			console.log("Invalid Command received from SmartThings")
-			response.setHeader("cmd-response", "invalidServerCmd")
+			response.setHeader("cmd-response", "commError")
+			fs.appendFile("error.log", "\n\r\n\r" + new Date() + "#### Invalid Command: " + command)
 			response.end()
 	}
 }
-//-- Response to TP-Link Device Commands ---------------------------------------
-function processDeviceCommand(request) {
+//	---------------------------------------------------------------------------
+function processDeviceCommand(request, response) {
 	var command = request.headers["tplink-command"]
 	var deviceIP = request.headers["tplink-iot-ip"]
 	console.log("Sending to IP address: " + deviceIP + " Command: " + command)
+
+//	---------------------------------------------------------------------------
 	var socket = net.connect(9999, deviceIP)
 	socket.setKeepAlive(false)
-	socket.setTimeout(600)
+	socket.setTimeout(4000)  // 4 seconds timeout.
    	 socket.on('connect', () => {
   		socket.write(encrypt(command))
    	 })
+//	---------------------------------------------------------------------------
+	var concatData = ""
+	var resp = ""
+	setTimeout(mergeData, 500)
+	function mergeData() {
+		if (concatData != "") {
+			data = decrypt(concatData.slice(4)).toString('ascii')
+			console.log("Command Response sent to SmartThings!")
+console.log(data)
+			response.setHeader("cmd-response", data)
+			response.end()
+			socket.end()
+		}
+	}
+//	---------------------------------------------------------------------------
 	socket.on('data', (data) => {
-		resp = resp + data.toString('ascii')
-		socket.end()
+		concatData += data.toString('ascii')
+//	---------------------------------------------------------------------------
 	}).on('timeout', () => {
-		resp = encrypt("TcpTimeout").toString('ascii')
 		socket.end()
+		response.setHeader("cmd-response", 'commError')
+		console.log("##### commsError:  Communications Timeout #####")
+		fs.appendFile("error.log", "\n\r\n\r" + new Date() + "#### No Comms with device: " + deviceIP)
+		response.end()
 	}).on('error', (err) => {
-		resp = encrypt("TcpError").toString('ascii')
 		socket.end()
+		response.setHeader("cmd-response", 'commError')
+		console.log("##### commsError:  Communications Data Error #####")
+		fs.appendFile("error.log", "\n\r\n\r" + new Date() + "#### Comms error with device: " + deviceIP)
+		response.end()
 	})
-}
-//-- Encrypt the command including a 4 byte TCP header. -----------------------
-function encrypt(input) {
-	var buf = Buffer.alloc(input.length)
-	var key = 0xAB
-	for (var i = 0; i < input.length; i++) {
-		buf[i] = input.charCodeAt(i) ^ key
-		key = buf[i]
+//	---------------------------------------------------------------------------
+	function encrypt(input) {
+		var buf = Buffer.alloc(input.length)
+		var key = 0xAB
+		for (var i = 0; i < input.length; i++) {
+			buf[i] = input.charCodeAt(i) ^ key
+			key = buf[i]
+		}
+		var bufLength = Buffer.alloc(4)
+		bufLength.writeUInt32BE(input.length, 0)
+		return Buffer.concat([bufLength, buf], input.length + 4)
 	}
-	var bufLength = Buffer.alloc(4)
-	bufLength.writeUInt32BE(input.length, 0)
-	return Buffer.concat([bufLength, buf], input.length + 4)
-}
-//--- Decrypt the response. ---------------------------------------------------
-function decrypt(input, firstKey) {
-	var buf = Buffer.from(input)
-	var key = 0x2B
-	var nextKey
-	for (var i = 0; i < buf.length; i++) {
-		nextKey = buf[i]
-		buf[i] = buf[i] ^ key
-		key = nextKey
+//	---------------------------------------------------------------------------
+	function decrypt(input, firstKey) {
+		var buf = Buffer.from(input)
+		var key = 0x2B
+		var nextKey
+		for (var i = 0; i < buf.length; i++) {
+			nextKey = buf[i]
+			buf[i] = buf[i] ^ key
+			key = nextKey
+		}
+		return buf
 	}
-	return buf
 }
