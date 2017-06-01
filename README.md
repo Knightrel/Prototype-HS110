@@ -9,9 +9,11 @@ a.  Stand-alone bridge (PC, Raspberry, etc.) running node.js and version "Protot
 
 b.  A TP-Link HS110 plug.
 
-# UPDATED May 29
+# UPDATED May 31
 
-Found error where sending emeter cmd using UDP did not respond (where it had before).  Probably unsupported size (to long a packet).  Changed back to TCP with concating the return.  Requires both Device Handler and prototype.js updates.
+6/1.  Corrected error in weekly process during month transition.
+
+5/29 Found error where sending emeter cmd using UDP did not respond (where it had before).  Probably unsupported size (to long a packet).  Changed back to TCP with concating the return.  Requires both Device Handler and prototype.js updates.
 
 Updated to correct date derivation and insert automatic scheduling of weekly/monthly statistics.  TO UPDATE,
 
@@ -25,15 +27,15 @@ d.  In the ST App, under settings, select "DONE".  This will initialize the date
 
 Does NOT require an update to the 'Prototype.js' file.
 
-# Open issues
+# Open issues - ALL CLOSED.
 
-1.  Ensure energy data is only 31 days (31 May check)
+1.  Ensure energy data is only 31 days (Complete.  No adjustments required.)
 
-2.  Validate month roll-over in calculations (2 June check)
+2.  Validate month roll-over in calculations (Complete.  Modified code to correct.)
 
-3.  See if automatic (15 min) refresh is working, once the devices are stable (current).  May have to go to polling.
+3.  See if automatic (15 min) refresh is working.  (Complete.  Scheduling refresh in DH.
 
-4.  Monitor UDP implementation for split return messages from the device causing the DH to generate an error and not update the week/month stat data.
+4.  Monitor UDP implementation. (Failed.  Went back to TCP.)
 
 # Installation:
 
