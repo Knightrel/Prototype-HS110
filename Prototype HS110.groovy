@@ -1,6 +1,6 @@
 /*
 TP-Link HS-110 Device Handler
-FOR USE ONLY WITH 'TP-LinkServer_v3js'
+FOR USE ONLY WITH 'TP-LinkServer_v3.js'
 
 Copyright 2017 Dave Gutheinz
 
@@ -86,11 +86,9 @@ preferences {
 //	---------------------------------------------------------------------------
 //	----- RUN WHEN PREFERENCES ARE UPDATES ------------------------------------
 def updated() {
-	log.info "Running Updated"
     unschedule()
 	runEvery15Minutes(refresh)
 	schedule("0 30 0 * * ?", setCurrentDate)
-	runIn(3, setCurrentDate)
 	setCurrentDate()
     runIn(6, refresh)
 }
@@ -103,24 +101,22 @@ def off() {
 	sendCmdtoServer('{"system":{"set_relay_state":{"state": 0}}}', "onOffResponse")
 }
 def refresh(){
-	log.info "Refreshing ${device.name} ${device.label}"
 	sendEvent(name: "switch", value: "waiting", isStateChange: true)
 	sendCmdtoServer('{"system":{"get_sysinfo":{}}}', "refreshResponse")
 }
 def onOffResponse(response){
-	if (response.headers["cmd-response"] == "commError") {
+	if (response.headers["cmd-response"] == "TcpTimeout") {
 		log.error "$device.name $device.label: Communications Error"
 		sendEvent(name: "switch", value: "offline", descriptionText: "ERROR - OffLine - mod onOffResponse", isStateChange: true)
-     } else {
-		log.info "On/Off command response received from server!"
+    } else {
 		refresh()
 	}
 }
 def refreshResponse(response){
-	if (response.headers["cmd-response"] == "commError") {
+	if (response.headers["cmd-response"] == "TcpTimeout") {
 		log.error "$device.name $device.label: Communications Error"
-		sendEvent(name: "switch", value: "offline", descriptionText: "ERROR - OffLine - mod refreshResponse", isStateChange: true)
-     } else {
+		sendEvent(name: "switch", value: "offline", descriptionText: "ERROR - OffLine - mod onOffResponse", isStateChange: true)
+    } else {
 		def cmdResponse = parseJson(response.headers["cmd-response"])
 		def status = cmdResponse.system.get_sysinfo.relay_state
 		if (status == 1) {
@@ -139,17 +135,22 @@ def getEngeryMeter(){
 	sendCmdtoServer('{"emeter":{"get_realtime":{}}}', "energyMeterResponse")
 }
 def energyMeterResponse(response) {
-	def cmdResponse = parseJson(response.headers["cmd-response"])
-    if (cmdResponse["emeter"].err_code == -1) {
-    	log.error "This DH Only Supports the HS110 plug"
-		sendEvent(name: "power", value: powerConsumption, descriptionText: "Bulb is not a HS110", isStateChange: true)
+	if (response.headers["cmd-response"] == "TcpTimeout") {
+		log.error "$device.name $device.label: Communications Error"
+		sendEvent(name: "switch", value: "offline", descriptionText: "ERROR - OffLine - mod onOffResponse", isStateChange: true)
     } else {
-	    def state = cmdResponse["emeter"]["get_realtime"]
-		def powerConsumption = state.power
-		sendEvent(name: "power", value: powerConsumption, isStateChange: true)
-	    log.info "Updating Current Power to $powerConsumption"
-		getUseToday()
-    }
+		def cmdResponse = parseJson(response.headers["cmd-response"])
+	    if (cmdResponse["emeter"].err_code == -1) {
+	    	log.error "This DH Only Supports the HS110 plug"
+			sendEvent(name: "power", value: powerConsumption, descriptionText: "Bulb is not a HS110", isStateChange: true)
+	    } else {
+		    def state = cmdResponse["emeter"]["get_realtime"]
+			def powerConsumption = state.power
+			sendEvent(name: "power", value: powerConsumption, isStateChange: true)
+			log.info "Updated current power consumption to $power"
+			getUseToday()
+	    }
+	}
 }
 //	---------------------------------------------------------------------------
 //	----- USE TODAY DATA ------------------------------------------------------
@@ -158,17 +159,22 @@ def getUseToday(){
 	sendCmdtoServer("""{"emeter":{"get_daystat":{"month": ${state.monthToday}, "year": ${state.yearToday}}}}""", "useTodayResponse")
 }
 def useTodayResponse(response) {
-	def engrToday
-	def cmdResponse = parseJson(response.headers["cmd-response"])
-    def dayList = cmdResponse["emeter"]["get_daystat"].day_list
-	for (int i = 0; i < dayList.size(); i++) {
-    	def engrData = dayList[i]
-		if(engrData.day == state.dayToday) {
-        	engrToday = Math.round(1000*engrData.energy) / 1000
-        }
-   }
-    sendEvent(name: "engrToday", value: engrToday, isStateChange: true)
-    log.info "Updated Today's Usage to $engrToday"
+	if (response.headers["cmd-response"] == "TcpTimeout") {
+		log.error "$device.name $device.label: Communications Error"
+		sendEvent(name: "switch", value: "offline", descriptionText: "ERROR - OffLine - mod onOffResponse", isStateChange: true)
+    } else {
+		def engrToday
+		def cmdResponse = parseJson(response.headers["cmd-response"])
+	    def dayList = cmdResponse["emeter"]["get_daystat"].day_list
+		for (int i = 0; i < dayList.size(); i++) {
+	    	def engrData = dayList[i]
+			if(engrData.day == state.dayToday) {
+	        	engrToday = Math.round(1000*engrData.energy) / 1000
+	        }
+	   }
+	    sendEvent(name: "engrToday", value: engrToday, isStateChange: true)
+	    log.info "Updated Today's Usage to $engrToday"
+	}
 }
 //	---------------------------------------------------------------------------
 //	----- WEEKLY AND MONTHLY STATISTICS ---------------------------------------
@@ -196,48 +202,61 @@ def getPrevMonth() {
 	}
 }
 def engrStatsResponse(response) {
-	getDateData()
-	def monTotEnergy = state.monTotEnergy
-	def wkTotEnergy = state.wkTotEnergy
-	def monTotDays = state.monTotDays
-	Calendar calendar = GregorianCalendar.instance
-	calendar.set(state.yearToday, state.monthToday, 1)
-	def prevMonthDays = calendar.getActualMaximum(GregorianCalendar.DAY_OF_MONTH)
-	def weekEnd = state.dayToday + prevMonthDays - 1
-	def weekStart = weekEnd - 6
-	def cmdResponse = parseJson(response.headers["cmd-response"])
-	if (cmdResponse["emeter"].err_code == -1) {
-	    log.error "This DH Only Supports the HS110 plug"
-		sendEvent(name: "monthTotalE", value: 0, descriptionText: "Bulb is not a HS110", isStateChange: true)
+	if (response.headers["cmd-response"] == "TcpTimeout") {
+		log.error "$device.name $device.label: Communications Error"
+		sendEvent(name: "switch", value: "offline", descriptionText: "ERROR - OffLine - mod onOffResponse", isStateChange: true)
     } else {
-		def dayList = cmdResponse["emeter"]["get_daystat"].day_list
-		for (int i = 0; i < dayList.size(); i++) {
-		    def engrData = dayList[i]
-			if(engrData.day == state.dayToday && engrData.month == state.monthToday) {
-		        monTotDays -= 1
-		    } else {
-		    	monTotEnergy += engrData.energy
-		    }
-		    def adjEngDay = engrData.day + prevMonthDays
-			if (engrData.day + prevMonthDays <= weekEnd && engrData.day + prevMonthDays >= weekStart) {
-		        wkTotEnergy += engrData.energy
+		getDateData()
+		def monTotEnergy = state.monTotEnergy
+		def wkTotEnergy = state.wkTotEnergy
+		def monTotDays = state.monTotDays
+		Calendar calendar = GregorianCalendar.instance
+		calendar.set(state.yearToday, state.monthToday, 1)
+		def prevMonthDays = calendar.getActualMaximum(GregorianCalendar.DAY_OF_MONTH)
+		def weekEnd = state.dayToday + prevMonthDays - 1
+		def weekStart = weekEnd - 6
+		def cmdResponse = parseJson(response.headers["cmd-response"])
+		if (cmdResponse["emeter"].err_code == -1) {
+		    log.error "This DH Only Supports the HS110 plug"
+			sendEvent(name: "monthTotalE", value: 0, descriptionText: "Bulb is not a HS110", isStateChange: true)
+	    } else {
+			def dayList = cmdResponse["emeter"]["get_daystat"].day_list
+			def dataMonth = dayList[0].month
+	        def currentMonth = state.monthToday
+	        def addedDays = 0
+			if (currentMonth == dataMonth) {
+	        	addedDays = prevMonthDays
+			} else {
+				addedDays = 0
 			}
+			for (int i = 0; i < dayList.size(); i++) {
+			    def engrData = dayList[i]
+				if(engrData.day == state.dayToday && engrData.month == state.monthToday) {
+			        monTotDays -= 1
+			    } else {
+			    	monTotEnergy += engrData.energy
+			    }
+		        def adjustDay = engrData.day + addedDays
+				if (adjustDay <= weekEnd && adjustDay >= weekStart) {
+			        wkTotEnergy += engrData.energy
+				}
+			}
+			monTotDays += dayList.size()
+			state.monTotDays = monTotDays
+			state.monTotEnergy = monTotEnergy
+			state.wkTotEnergy = wkTotEnergy
+			if (state.dayToday == 31 || state.monthToday -1 == dataMonth) {
+				log.info "Updated 7 and 30 day energy consumption statistics"
+		        wkTotEnergy = Math.round(1000*wkTotEnergy) / 1000
+		        monTotEnergy = Math.round(1000*monTotEnergy) / 1000
+				def wkAvgEnergy = Math.round((1000*wkTotEnergy)/7) / 1000
+				def monAvgEnergy = Math.round((1000*monTotEnergy)/monTotDays) / 1000
+				sendEvent(name: "monthTotalE", value: monTotEnergy, isStateChange: true)
+				sendEvent(name: "monthAvgE", value: monAvgEnergy, isStateChange: true)
+				sendEvent(name: "weekTotalE", value: wkTotEnergy, isStateChange: true)
+				sendEvent(name: "weekAvgE", value: wkAvgEnergy, isStateChange: true)
+	        }
 		}
-		monTotDays += dayList.size()
-		state.monTotDays = monTotDays
-		state.monTotEnergy = monTotEnergy
-		state.wkTotEnergy = wkTotEnergy
-		if (state.dayToday == 31 || state.monthToday -1 == dayList[1].month) {
-			log.info "Updated 7 and 30 day energy consumption statistics"
-	        wkTotEnergy = Math.round(1000*wkTotEnergy) / 1000
-	        monTotEnergy = Math.round(1000*monTotEnergy) / 1000
-			def wkAvgEnergy = Math.round((1000*wkTotEnergy)/7) / 1000
-			def monAvgEnergy = Math.round((1000*monTotEnergy)/monTotDays) / 1000
-			sendEvent(name: "monthTotalE", value: monTotEnergy, isStateChange: true)
-			sendEvent(name: "monthAvgE", value: monAvgEnergy, isStateChange: true)
-			sendEvent(name: "weekTotalE", value: wkTotEnergy, isStateChange: true)
-			sendEvent(name: "weekAvgE", value: wkAvgEnergy, isStateChange: true)
-        }
 	}
 }
 //	---------------------------------------------------------------------------
@@ -247,13 +266,18 @@ def setCurrentDate() {
     runIn(4, getWkMonStats)
 }
 def currentDateResponse(response) {
-	def cmdResponse = parseJson(response.headers["cmd-response"])
-	def setDate =  cmdResponse["time"]["get_time"]
-    updateDataValue("dayToday", "$setDate.mday")
-    updateDataValue("monthToday", "$setDate.month")
-    updateDataValue("yearToday", "$setDate.year")
-    sendEvent(name: "dateUpdate", value: "${setDate.year}/${setDate.month}/${setDate.mday}")
-    log.info "Current Date Updated to ${setDate.year}/${setDate.month}/${setDate.mday}"
+	if (response.headers["cmd-response"] == "TcpTimeout") {
+		log.error "$device.name $device.label: Communications Error"
+		sendEvent(name: "switch", value: "offline", descriptionText: "ERROR - OffLine - mod onOffResponse", isStateChange: true)
+    } else {
+		def cmdResponse = parseJson(response.headers["cmd-response"])
+		def setDate =  cmdResponse["time"]["get_time"]
+	    updateDataValue("dayToday", "$setDate.mday")
+	    updateDataValue("monthToday", "$setDate.month")
+	    updateDataValue("yearToday", "$setDate.year")
+	    sendEvent(name: "dateUpdate", value: "${setDate.year}/${setDate.month}/${setDate.mday}")
+	    log.info "Current Date Updated to ${setDate.year}/${setDate.month}/${setDate.mday}"
+	}
 }
 def getDateData(){
 	state.dayToday = getDataValue("dayToday") as int
@@ -264,7 +288,7 @@ def getDateData(){
 //	----- SEND COMMAND DATA TO THE SERVER -------------------------------------
 private sendCmdtoServer(command, action){
 	def headers = [:] 
-	headers.put("HOST", "$gatewayIP:8085")	//	SET TO VALUE IN JAVA SCRIPT PKG.
+	headers.put("HOST", "$gatewayIP:8082")	//	SET TO VALUE IN JAVA SCRIPT PKG.
 	headers.put("tplink-iot-ip", deviceIP)
     headers.put("tplink-command", command)
 	headers.put("command", "deviceCommand")
